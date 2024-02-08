@@ -88,6 +88,7 @@ import os
 from pathlib import Path
 import re
 import sys
+from typing import Tuple
 
 from ansimarkup import parse as cparse
 
@@ -267,17 +268,18 @@ class StemRunner:
                                           popen=self.popen)
         self.template_section = '[template variables]'
 
+        # results get stored here
         self.env = {}
-        self.defines = {}
+        self.template_variables = {}
 
-    def _add_define_option(self, var, val):
+    def _add_template_var(self, var, val):
         """Add a define option passed to the SuiteRunner.
 
         Args:
             var: Name of variable to set
             val: Value of variable to set
         """
-        self.defines[var] = val
+        self.template_variables[var] = val
         self.reporter(ConfigVariableSetEvent(var, val))
 
     def _get_fcm_loc_layout_info(self, src_tree):
@@ -468,7 +470,7 @@ class StemRunner:
             for option in automatic_options:
                 elements = option.split("=")
                 if len(elements) == 2:
-                    self._add_define_option(
+                    self._add_template_var(
                         elements[0], '"' + elements[1] + '"')
 
     def process(self, warn_source=True):
@@ -514,31 +516,31 @@ class StemRunner:
             else:
                 repos[project] = [url]
                 repos_with_hosts[project] = [url_host]
-                self._add_define_option('SOURCE_' + project.upper() + '_REV',
+                self._add_template_var('SOURCE_' + project.upper() + '_REV',
                                         '"' + rev + '"')
-                self._add_define_option('SOURCE_' + project.upper() + '_BASE',
+                self._add_template_var('SOURCE_' + project.upper() + '_BASE',
                                         '"' + base + '"')
-                self._add_define_option('HOST_SOURCE_' + project.upper() +
+                self._add_template_var('HOST_SOURCE_' + project.upper() +
                                         '_BASE', '"' + base_host + '"')
-                self._add_define_option('SOURCE_' + project.upper() +
+                self._add_template_var('SOURCE_' + project.upper() +
                                         '_MIRROR', '"' + mirror + '"')
             self.reporter(SourceTreeAddedAsBranchEvent(url))
 
         for project, branches in repos.items():
             var = 'SOURCE_' + project.upper()
             branchstring = RosePopener.list_to_shell_str(branches)
-            self._add_define_option(var, '"' + branchstring + '"')
+            self._add_template_var(var, '"' + branchstring + '"')
         for project, branches in repos_with_hosts.items():
             var_host = 'HOST_SOURCE_' + project.upper()
             branchstring = RosePopener.list_to_shell_str(branches)
-            self._add_define_option(var_host, '"' + branchstring + '"')
+            self._add_template_var(var_host, '"' + branchstring + '"')
 
         # Generate the variable containing tasks to run
         if self.opts.stem_groups:
             expanded_groups = []
             for i in self.opts.stem_groups:
                 expanded_groups.extend(i.split(','))
-            self._add_define_option('RUN_NAMES', expanded_groups)
+            self._add_template_var('RUN_NAMES', expanded_groups)
 
         self._parse_auto_opts()
 
@@ -559,16 +561,21 @@ class StemRunner:
         return self.opts
 
     def enact(self, opts):
+        """Apply the results of running rose-stem to "opts"."""
         # export environment variables
         export_environment(self.env)
 
         # set template variables
-        for key, val in self.defines.items():
-            define_string = self.template_section + key + '=' + str(val)
-            if opts.defines:
-                opts.defines.append(define_string)
-            else:
-                opts.defines = [define_string]
+        if opts.defines is None:
+            opts.defines = []
+        opts.defines.extend([
+            self.template_section + key + '=' + str(val)
+            for key, val in self.template_variables.items()
+        ])
+
+        # set workflow name
+        if not getattr(opts, 'workflow_name', None):
+            opts.workflow_name = self.opts.workflow_name
 
 
 def get_source_opt_from_args(opts, args):
@@ -674,11 +681,16 @@ async def rose_stem(parser, opts):
         )
 
 
-def get_groups(
+def get_groups_and_sources(
     opts: 'Values',
     rose_template_variables: dict,
-) -> dict:
-    """Extract stem tasks/groups from template variables."""
+) -> Tuple[dict, list]:
+    """Extract stem tasks/groups and sources from template variables.
+
+    Returns:
+        (groups, sources)
+
+    """
     from cylc.flow.templatevars import load_template_vars
 
     # fetch cylc template variables
@@ -698,7 +710,7 @@ def get_groups(
         **template_vars,
     }
 
-    # validate
+    # validate groups
     if 'RUN_NAMES' in template_vars:
         raise InputError(
             "Don't set RUN_NAMES manually, use 'tasks' or 'groups'"
@@ -710,13 +722,11 @@ def get_groups(
     if 'TASKS' in template_vars or 'GROUPS' in template_vars:
         raise InputError('Use "tasks" or "groups" not "TASKS" or "GROUPS"')
 
-    # get the task/group list
-    ret = template_vars.get('tasks', template_vars.get('groups', []))
+    # extract groups / sources
+    groups = template_vars.get('tasks', template_vars.get('groups', []))
+    sources = template_vars.get('sources', [])
 
-    # set the implicit RUN_NAMES variable
-    # rose_template_variables['RUN_NAMES'] = ret
-
-    return ret
+    return groups, sources
 
 
 def add_install_opts(opts):
@@ -754,12 +764,14 @@ def rose_stem_plugin(
         # This retrieves the result of an earlier run to avoid re-running the
         # plugin itself.
         opts._rose_stem_runner.enact(opts)
-        rose_template_variables['RUN_NAMES'] = opts._rose_stem_runner.defines['RUN_NAMES']
+        rose_template_variables.update(
+            opts._rose_stem_runner.template_variables
+        )
         return
 
     # this is the first run of the plugin
     LOG.warning('Running the experimental rose-stem Cylc plugin.')
-    groups = get_groups(opts, rose_template_variables)
+    groups, sources = get_groups_and_sources(opts, rose_template_variables)
 
     # set the implicit RUN_NAMES template variable
     # rose_template_variables['RUN_NAMES'] = groups
@@ -769,7 +781,7 @@ def rose_stem_plugin(
     _opts = deepcopy(opts)
 
     # set rose-stem options (should match get_rose_stem_opts)
-    _opts.stem_sources = [f'source={srcdir.parent}']
+    _opts.stem_sources = [f'source={srcdir.parent}'] + sources
     _opts.stem_groups = groups
     _opts.workflow_conf_dir = srcdir
     _opts.quietness = 0
@@ -780,8 +792,10 @@ def rose_stem_plugin(
     # run rose run
     rose_stem_runner = StemRunner(_opts)
     rose_stem_runner.process(warn_source=False)
+
+    # set template vars
     rose_stem_runner.enact(opts)
-    rose_template_variables['RUN_NAMES'] = rose_stem_runner.defines['RUN_NAMES']
+    rose_template_variables.update(rose_stem_runner.template_variables)
 
     # cache the runner for future use
     opts._rose_stem_runner = rose_stem_runner
