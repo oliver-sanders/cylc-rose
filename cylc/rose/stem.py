@@ -60,6 +60,7 @@ Jinja2 Variables
         is intended to specify the revision of `fcm-make` config files.
 """
 
+from copy import deepcopy
 from contextlib import suppress
 from optparse import OptionGroup
 import os
@@ -68,7 +69,9 @@ import re
 import sys
 
 from ansimarkup import parse as cparse
-from cylc.flow.exceptions import CylcError
+
+from cylc.flow import LOG
+from cylc.flow.exceptions import CylcError, InputError
 from cylc.flow.scripts.install import get_option_parser
 from cylc.flow.scripts.install import install as cylc_install
 import metomi.rose.config
@@ -115,7 +118,7 @@ class NameSetEvent(Event):
     LEVEL = Event.V
 
     def __repr__(self):
-        return "Suite is named %s" % (self.args[0])
+        return "Workflow is named %s" % (self.args[0])
 
     __str__ = __repr__
 
@@ -321,7 +324,7 @@ class StemRunner:
             mirror = re.sub(r'\.xm', r'.xm/', mirror)
         return mirror
 
-    def _ascertain_project(self, item):
+    def _ascertain_project(self, item, warn_source=True):
         """Set the project name and top-level from 'fcm loc-layout'.
         Returns:
         - project name
@@ -338,7 +341,8 @@ class StemRunner:
             item = os.path.abspath(os.path.join(os.getcwd(), item))
 
         if project:
-            print(f"[WARN] Forcing project for '{item}' to be '{project}'")
+            if warn_source:
+                LOG.warning(f"Forcing project for '{item}' to be '{project}'")
             return project, item, item, '', ''
 
         source_dict = self._get_fcm_loc_layout_info(item)
@@ -447,8 +451,14 @@ class StemRunner:
                     self._add_define_option(
                         elements[0], '"' + elements[1] + '"')
 
-    def process(self):
-        """Process STEM options into 'rose suite-run' options."""
+    def process(self, warn_source=True):
+        """Process STEM options into 'rose suite-run' options.
+
+        Args:
+            warn_source:
+                If True, then a warning will be displayed if the source is
+                changed.
+        """
         # Generate options for source trees
         repos = {}
         repos_with_hosts = {}
@@ -457,7 +467,10 @@ class StemRunner:
         self.opts.project = []
 
         for i, url in enumerate(self.opts.stem_sources):
-            project, url, base, rev, mirror = self._ascertain_project(url)
+            project, url, base, rev, mirror = self._ascertain_project(
+                url,
+                warn_source,
+            )
             self.opts.stem_sources[i] = url
             self.opts.project.append(project)
 
@@ -610,6 +623,7 @@ def get_rose_stem_opts():
 
 
 async def rose_stem(parser, opts):
+    print('Running rose-stem standalone install')
     try:
         # modify the CLI options to add whatever rose stem would like to add
         opts = StemRunner(opts).process()
@@ -627,3 +641,112 @@ async def rose_stem(parser, opts):
             ),
             file=sys.stderr
         )
+
+
+def get_groups(
+    opts: 'Values',
+    rose_template_variables: dict,
+    reload_run_names: bool = False,
+) -> dict:
+    """Extract stem tasks/groups from template variables."""
+    from cylc.flow.templatevars import load_template_vars
+
+    # fetch cylc template variables
+    template_vars = load_template_vars(
+        opts.templatevars,
+        opts.templatevars_file,
+        opts.templatevars_lists,
+    )
+
+    # merge with rose template variables
+    # NOTE: we apply the Rose vars *before* the Cylc ones, which is kinda wrong
+    #       the reason for this is that otherwise, you would not be able to
+    #       override any default tasks/groups defined in the rose-suite.conf
+    #       file using the Cylc template variable options (e.g. -z).
+    template_vars = {
+        **rose_template_variables,
+        **template_vars,
+    }
+
+    if reload_run_names:
+        ret = template_vars.get('RUN_NAMES', [])
+
+        return ret
+
+    # validate
+    if 'RUN_NAMES' in template_vars:
+        raise InputError(
+            "Don't set RUN_NAMES manually, use 'tasks' or 'groups'"
+        )
+
+    if 'tasks' in template_vars and 'groups' in template_vars:
+        raise InputError('Both "tasks" and "groups" provided.')
+
+    if 'TASKS' in template_vars or 'GROUPS' in template_vars:
+        raise InputError('Use "tasks" or "groups" not "TASKS" or "GROUPS"')
+
+    # get the task/group list
+    ret = template_vars.get('tasks', template_vars.get('groups', []))
+
+    # set the implicit RUN_NAMES variable
+    rose_template_variables['RUN_NAMES'] = ret
+
+    return ret
+
+
+def add_install_opts(opts):
+    """Add implicit cylc-install options.
+
+    The Rose stem plugin can be actioned by several different Cylc commands
+    e.g. "cylc graph", "cylc config", etc, not just "cylc install".
+
+    Because the Rose Stem logic is expecting "cylc install" arguments, we must
+    add default values in to avoid issues.
+
+    This loops over the "cylc install" option parser and adds any missing
+    options.
+    """
+    for option in get_option_parser().option_list:
+        if option.dest and not hasattr(opts, option.dest):
+            setattr(opts, option.dest, option.default)
+
+
+def rose_stem_plugin(
+    srcdir: Path,
+    opts: 'Values',
+    rose_template_variables: dict,
+):
+    # prevent this plugin from being re-run by compound commands
+    # (e.g. cylc vip)
+    if hasattr(opts, '_rose_stem_template_variables'):
+        rose_template_variables['RUN_NAMES'] = (
+            opts._rose_stem_template_variables
+        )
+        print('SKIP')
+        return
+
+    LOG.warning('Using the experimental rose-stem Cylc plugin.')
+
+    groups = get_groups(
+        opts,
+        rose_template_variables,
+        reload_run_names=hasattr(opts, '_rose_stem_template_variables'),
+    )
+    rose_template_variables['RUN_NAMES'] = groups
+
+    opts._rose_stem_template_variables = groups
+
+    # avoid mutating the original, this prevents issues with "cylc play"
+    opts = deepcopy(opts)
+
+    # set rose-stem options (should match get_rose_stem_opts)
+    opts.stem_sources = [f'source={srcdir.parent}']
+    opts.stem_groups = groups
+    opts.workflow_conf_dir = srcdir
+    opts.quietness = 0
+
+    # set cylc-install options in case we are not being run by "cylc install"
+    add_install_opts(opts)
+
+    # run rose run
+    StemRunner(opts).process(warn_source=False)

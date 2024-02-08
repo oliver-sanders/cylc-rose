@@ -16,6 +16,7 @@
 """Top level module providing entry point functions."""
 
 from pathlib import Path
+import sys
 from typing import TYPE_CHECKING
 
 from cylc.rose.utilities import (
@@ -44,8 +45,17 @@ def pre_configure(srcdir: Path, opts: 'Values') -> dict:
     # extract plugin return information from the Rose config
     plugin_result = process_config(config_tree)
 
-    # set environment variables
-    export_environment(plugin_result['env'])
+    if (
+        config_tree.node.get(('ROSE_STEM_VERSION',))
+        and ['rose', 'stem'] not in sys.argv
+    ):
+        # run automatic rose-stem plugin
+        from cylc.rose.stem import rose_stem_plugin
+        rose_stem_plugin(srcdir, opts, plugin_result['template_variables'])
+    else:
+        # set environment variables
+        # (NOTE: the rose-stem plugin sets its own environment)
+        export_environment(plugin_result['env'])
 
     return plugin_result
 
