@@ -698,10 +698,10 @@ def get_groups_and_sources(
     )
 
     # merge with rose template variables
-    # NOTE: we apply the Rose vars *before* the Cylc ones, which is kinda wrong
-    #       the reason for this is that otherwise, you would not be able to
-    #       override any default tasks/groups defined in the rose-suite.conf
-    #       file using the Cylc template variable options (e.g. -z).
+    # NOTE: we apply the Rose vars *before* the Cylc ones, otherwise, you would
+    #       not be able to override any default tasks/groups defined in the
+    #       rose-suite.conf file using the Cylc template variable options
+    #       (e.g. -z).
     template_vars = {
         **rose_template_variables,
         **template_vars,
@@ -718,6 +718,15 @@ def get_groups_and_sources(
 
     if 'TASKS' in template_vars or 'GROUPS' in template_vars:
         raise InputError('Use "tasks" or "groups" not "TASKS" or "GROUPS"')
+
+    if (
+        # no tasks/groups defined
+        not set(template_vars) & {'tasks', 'groups'}
+        # default run names defined
+        and 'DEFAULT_RUN_NAMES' in template_vars
+    ):
+        LOG.info('No tasks/groups defined, falling back to DEFAULT_RUN_NAMES')
+        template_vars['groups'] = template_vars['DEFAULT_RUN_NAMES']
 
     # extract groups / sources
     groups = template_vars.get('tasks', template_vars.get('groups', []))
