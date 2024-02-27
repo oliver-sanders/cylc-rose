@@ -45,13 +45,11 @@ Rose Stem Plugin
     workflow, providing any tasks/groups using the "-z" option e.g:
 
     # old rose stem command
-    $ rose stem --group=developer,canary --source=mysource=$PWD
+    $ rose stem --group=developer,canary --source=mysource=$PWD --source=foo
     $ cylc play <workflow-id>
 
     # new rose stem plugin
-    $ cylc vip -z group=developer,canary ./rose-stem
-
-    The plugin only supports a single source.
+    $ cylc vip -z group=developer,canary ./rose-stem --source=foo
 
 Jinja2 Variables
 
@@ -659,7 +657,6 @@ def get_rose_stem_opts():
 
 
 async def rose_stem(parser, opts):
-    print('Running rose-stem standalone install')
     try:
         # modify the CLI options to add whatever rose stem would like to add
         rose_stem_runner = StemRunner(opts)
