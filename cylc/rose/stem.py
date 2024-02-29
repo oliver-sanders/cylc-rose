@@ -550,7 +550,7 @@ class StemRunner:
             expanded_groups = []
             for i in self.opts.stem_groups:
                 expanded_groups.extend(i.split(','))
-            self._add_template_var('RUN_NAMES', expanded_groups)
+            self._add_template_var('RUN_NAMES', str(expanded_groups))
 
         self._parse_auto_opts()
 
@@ -764,6 +764,15 @@ def add_install_opts(opts):
             setattr(opts, option.dest, option.default)
 
 
+def update_rose_template_vars(rose_template_vars, unparsed_template_vars):
+    from cylc.rose.jinja2_parser import Parser
+    parser = Parser()
+    rose_template_vars.update({
+        key: parser.literal_eval(value)
+        for key, value in unparsed_template_vars.items()
+    })
+
+
 def rose_stem_plugin(
     srcdir: Path,
     opts: 'Values',
@@ -782,8 +791,9 @@ def rose_stem_plugin(
         # This retrieves the result of an earlier run to avoid re-running the
         # plugin itself.
         opts._rose_stem_runner.enact(opts)
-        rose_template_variables.update(
-            opts._rose_stem_runner.template_variables
+        update_rose_template_vars(
+            rose_template_variables,
+            opts._rose_stem_runner.template_variables,
         )
         return
 
@@ -814,12 +824,15 @@ def rose_stem_plugin(
 
     # set template vars
     rose_stem_runner.enact(opts)
-    rose_template_variables.update(rose_stem_runner.template_variables)
+    update_rose_template_vars(
+        rose_template_variables,
+        rose_stem_runner.template_variables,
+    )
 
     # cache the runner for future use
     opts._rose_stem_runner = rose_stem_runner
 
 
-# * SITE varaibe need to be quoted and not quoted for different stages
-# * ALL CLI variables need to be set for fcm_make use cases OR we need to use the flow-processed.cylc?
-# * Default source name currently hardcoded - git fallback required
+# * [x] SITE varaibe need to be quoted and not quoted for different stages
+# * [x] ALL CLI variables need to be set for fcm_make use cases OR we need to use the flow-processed.cylc?
+# * [x] Default source name currently hardcoded - git fallback required
