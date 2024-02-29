@@ -46,8 +46,10 @@ def pre_configure(srcdir: Path, opts: 'Values') -> dict:
     plugin_result = process_config(config_tree)
 
     if (
+        # this is a rose-stem test workflow
         config_tree.node.get(('ROSE_STEM_VERSION',))
-        and ['rose', 'stem'] not in sys.argv
+        # but we are not running it with the "rose stem" command
+        and not hasattr(opts, '_rose_stem_cmd')
     ):
         # run automatic rose-stem plugin
         from cylc.rose.stem import rose_stem_plugin

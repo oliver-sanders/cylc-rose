@@ -673,6 +673,7 @@ async def rose_stem(parser, opts):
         # modify the CLI options to add whatever rose stem would like to add
         rose_stem_runner = StemRunner(opts)
         opts = rose_stem_runner.process()
+        opts._rose_stem_cmd = True  # flag to disable auto plugin
         rose_stem_runner.enact(opts)
 
         # call cylc install
