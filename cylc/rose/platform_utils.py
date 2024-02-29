@@ -19,6 +19,7 @@
 """Interfaces for Cylc Platforms for use by rose apps."""
 
 from optparse import Values
+from pathlib import Path
 import sqlite3
 import subprocess
 from time import sleep
@@ -26,7 +27,7 @@ from typing import Any, Dict
 
 from cylc.flow.config import WorkflowConfig
 from cylc.flow.id_cli import parse_id
-from cylc.flow.pathutil import get_workflow_run_pub_db_path
+from cylc.flow.pathutil import get_workflow_run_pub_db_path, get_workflow_run_dir
 from cylc.flow.platforms import (
     HOST_REC_COMMAND,
     get_platform,
@@ -48,8 +49,13 @@ def get_platform_from_task_def(flow: str, task: str) -> Dict[str, Any]:
     Returns:
         Platform Dictionary.
     """
-    _, _, flow_file = parse_id(flow, constraint='workflows', src=True)
-    config = WorkflowConfig(flow, flow_file, Values())
+    workflow_id, _, _ = parse_id(flow, constraint='workflows', src=True)
+    run_dir = get_workflow_run_dir(workflow_id)
+    flow_file = Path(run_dir) / 'log/config/flow-processed.cylc'
+    # PROBLEM 2
+    opts = Values()
+    # opts.verbosity = 1
+    config = WorkflowConfig(flow, flow_file, opts)
     # Get entire task spec to allow Cylc 7 platform from host guessing.
     task_spec = config.pcfg.get(['runtime', task])
     # check for subshell and evaluate

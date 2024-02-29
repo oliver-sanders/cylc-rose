@@ -352,7 +352,6 @@ class StemRunner:
         - top-level location of the source tree without revision number
         - revision number
         """
-
         project = None
         with suppress(ValueError):
             project, item = item.split("=", 1)
@@ -471,7 +470,7 @@ class StemRunner:
                     self._add_template_var(
                         elements[0], '"' + elements[1] + '"')
 
-    def process(self, warn_source=True):
+    def process(self, warn_source=True, default_project_name=None):
         """Process STEM options into 'rose suite-run' options.
 
         Args:
@@ -487,10 +486,23 @@ class StemRunner:
         self.opts.project = []
 
         for i, url in enumerate(self.opts.stem_sources):
-            project, url, base, rev, mirror = self._ascertain_project(
-                url,
-                warn_source,
-            )
+            try:
+                project, url, base, rev, mirror = self._ascertain_project(
+                    url,
+                    warn_source,
+                )
+            except ProjectNotFoundException as exc:
+                # we couldn't determine the project name (e.g. this is not an
+                # SVN version controlled source)
+                if i == 0 and default_project_name:
+                    # this is the first source in the list (i.e. the rose-stem
+                    # source) so we'll fall back to a default project name
+                    project = default_project_name
+                    base = url
+                    rev = mirror = ''
+                else:
+                    raise exc from None
+
             self.opts.stem_sources[i] = url
             self.opts.project.append(project)
 
@@ -692,9 +704,9 @@ def get_groups_and_sources(
 
     # fetch cylc template variables
     template_vars = load_template_vars(
-        opts.templatevars,
-        opts.templatevars_file,
-        opts.templatevars_lists,
+        getattr(opts, 'templatevars', None),
+        getattr(opts, 'templatevars_file', None),
+        getattr(opts, 'templatevars_lists', None),
     )
 
     # merge with rose template variables
@@ -787,7 +799,8 @@ def rose_stem_plugin(
     _opts = deepcopy(opts)
 
     # set rose-stem options (should match get_rose_stem_opts)
-    _opts.stem_sources = [f'source={srcdir.parent}'] + sources
+    _opts.stem_sources = [str(srcdir.parent)] + sources  # TODO
+    # _opts.stem_sources = sources  # TODO
     _opts.stem_groups = groups
     _opts.workflow_conf_dir = srcdir
     _opts.quietness = 0
@@ -797,7 +810,7 @@ def rose_stem_plugin(
 
     # run rose run
     rose_stem_runner = StemRunner(_opts)
-    rose_stem_runner.process(warn_source=False)
+    rose_stem_runner.process(warn_source=False, default_project_name='stem')
 
     # set template vars
     rose_stem_runner.enact(opts)
@@ -805,3 +818,8 @@ def rose_stem_plugin(
 
     # cache the runner for future use
     opts._rose_stem_runner = rose_stem_runner
+
+
+# * SITE varaibe need to be quoted and not quoted for different stages
+# * ALL CLI variables need to be set for fcm_make use cases OR we need to use the flow-processed.cylc?
+# * Default source name currently hardcoded - git fallback required
