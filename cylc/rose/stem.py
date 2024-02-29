@@ -744,6 +744,13 @@ def get_groups_and_sources(
     groups = template_vars.get('tasks', template_vars.get('groups', []))
     sources = template_vars.get('sources', [])
 
+    if not groups:
+        raise InputError(
+            'No tasks/groups specified, set the "tasks" or "groups"'
+            ' template variables (e.g. -z tasks=foo,bar,baz)'
+            ' or hardcode DEFAULT_RUN_NAMES.'
+        )
+
     return groups, sources
 
 
