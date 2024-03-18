@@ -721,10 +721,10 @@ def get_groups_and_sources(
     }
 
     # validate groups
-    if 'RUN_NAMES' in template_vars:
-        raise InputError(
-            "Don't set RUN_NAMES manually, use 'tasks' or 'groups'"
-        )
+    # if 'RUN_NAMES' in template_vars:
+    #     raise InputError(
+    #         "Don't set RUN_NAMES manually, use 'tasks' or 'groups'"
+    #     )
 
     if 'tasks' in template_vars and 'groups' in template_vars:
         raise InputError('Both "tasks" and "groups" provided.')
@@ -844,3 +844,9 @@ def rose_stem_plugin(
 # * [x] SITE varaibe need to be quoted and not quoted for different stages
 # * [x] ALL CLI variables need to be set for fcm_make use cases OR we need to use the flow-processed.cylc?
 # * [x] Default source name currently hardcoded - git fallback required
+
+
+# * [ ] Commands fail against run dirs with do not specify RUN_NAMES
+# * [ ] cylc play fails with RUN_NAMES already specified for james but not me??
+# * [ ] cylc install doesn't like an absense of run names if run alone
+# * [ ] everything submit-fails?!
