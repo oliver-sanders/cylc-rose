@@ -30,7 +30,7 @@ from cylc.flow.pathutil import (
     get_workflow_run_config_log_dir,
     get_workflow_run_pub_db_path,
 )
-from cylc.flow.workflow_files import WorkflowFiles
+from cylc.flow.workflow_files import WorkflowFiles, check_deprecation
 from cylc.flow.platforms import (
     HOST_REC_COMMAND,
     get_platform,
@@ -57,6 +57,10 @@ def get_platform_from_task_def(flow: str, task: str) -> Dict[str, Any]:
         workflow_id,
         WorkflowFiles.FLOW_FILE_PROCESSED,
     )
+    # ensure the cylc back compat flag is set as needed *before* loading the
+    # workflow config
+    check_deprecation(get_workflow_run_dir(workflow_id), warn=False)
+    # load the workflow config
     config = WorkflowConfig(flow, flow_file, Values())
     # Get entire task spec to allow Cylc 7 platform from host guessing.
     task_spec = config.pcfg.get(['runtime', task])
