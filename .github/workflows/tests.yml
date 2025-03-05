@@ -44,7 +44,7 @@ jobs:
             python=${{ matrix.python-version }}
 
       - name: install libs
-        uses: cylc/release-actions/install-cylc-components@v1
+        uses: oliver-sanders/release-actions/install-cylc-components@login-shell
         with:
           cylc_flow: true
           cylc_flow_opts: ''
@@ -130,7 +130,7 @@ jobs:
             python=${{ matrix.python-version }}
 
       - name: install libs
-        uses: cylc/release-actions/install-cylc-components@v1
+        uses: oliver-sanders/release-actions/install-cylc-components@login-shell
         with:
           cylc_flow: true
           cylc_flow_opts: ''
