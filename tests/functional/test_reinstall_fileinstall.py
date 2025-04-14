@@ -23,7 +23,7 @@ from pathlib import Path
 import shutil
 from uuid import uuid4
 
-import pytest
+import pytest_asyncio
 
 from cylc.flow.pathutil import get_workflow_run_dir
 
@@ -31,7 +31,7 @@ from cylc.flow.pathutil import get_workflow_run_dir
 WORKFLOW_SRC = Path(__file__).parent / '14_reinstall_fileinstall'
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def fixture_provide_flow(tmp_path_factory, request):
     """Provide a cylc workflow based on the contents of a folder which can
     be either validated or installed.

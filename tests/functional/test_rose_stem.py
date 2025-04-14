@@ -29,6 +29,7 @@ from uuid import uuid4
 from typing import Dict
 
 import pytest
+import pytest_asyncio
 
 from cylc.flow.hostuserutil import get_host
 
@@ -48,7 +49,7 @@ except FileNotFoundError:
     pytest.skip("\"FCM\" not installed", allow_module_level=True)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def rose_stem_project(tmp_path_factory, monkeymodule, request):
     """A Rose Stem project's root directory.
 

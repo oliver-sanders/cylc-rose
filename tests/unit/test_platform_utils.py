@@ -24,6 +24,9 @@ from shutil import rmtree
 import sqlite3
 from uuid import uuid4
 
+import pytest
+import pytest_asyncio
+
 from cylc.rose.platform_utils import (
     get_compat_mode,
     get_platform_from_task_def,
@@ -35,7 +38,6 @@ from cylc.flow.cfgspec.globalcfg import SPEC
 from cylc.flow.parsec.config import ParsecConfig
 from cylc.flow.pathutil import get_workflow_run_pub_db_path
 from cylc.flow.workflow_db_mgr import CylcWorkflowDAO
-import pytest
 
 
 MOCK_GLBL_CFG = (
@@ -102,7 +104,7 @@ def mock_glbl_cfg(tmp_path, monkeypatch):
     rmtree(tmp_path)
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 def fake_flow():
     """Set up enough of an installed flow for tests in module.
 

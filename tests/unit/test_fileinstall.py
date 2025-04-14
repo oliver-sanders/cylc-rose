@@ -20,14 +20,15 @@ from pathlib import Path
 import shutil
 from uuid import uuid4
 
+import pytest_asyncio
+
 from cylc.flow.hostuserutil import get_host
 from cylc.flow.pathutil import get_workflow_run_dir
-import pytest
 
 from cylc.rose.utilities import ROSE_ORIG_HOST_INSTALLED_OVERRIDE_STRING
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def fixture_provide_flow(tmp_path_factory):
     # Set up paths for test:
     srcpath = tmp_path_factory.getbasetemp() / 'src'
@@ -55,7 +56,7 @@ def fixture_provide_flow(tmp_path_factory):
     yield srcpath, datapath, flow_name
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 async def fixture_install_flow(
     fixture_provide_flow, request,
     mod_cylc_install_cli,

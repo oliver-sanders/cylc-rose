@@ -29,6 +29,7 @@ from uuid import uuid4
 
 import pytest
 from pytest import UsageError
+import pytest_asyncio
 
 from cylc.flow import __version__ as CYLC_VERSION
 from cylc.flow.option_parsers import Options
@@ -66,7 +67,7 @@ def version_info():
     return VERSIONINFO
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def event_loop():
     """This fixture defines the event loop used for each test.
 
@@ -91,7 +92,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def monkeymodule():
     """Make monkeypatching available in a module scope."""
     with pytest.MonkeyPatch.context() as mp:
@@ -103,12 +104,12 @@ def workflow_name():
     return 'cylc-rose-test-' + str(uuid4())[:8]
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_workflow_name():
     return 'cylc-rose-test-' + str(uuid4())[:8]
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_capsys(request):
     from _pytest.capture import SysCapture
     capman = request.config.pluginmanager.getplugin("capturemanager")
@@ -121,7 +122,7 @@ def mod_capsys(request):
     capman.unset_fixture()
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_caplog(request):
     request.node.add_report_section = lambda *args: None
     logging_plugin = request.config.pluginmanager.getplugin('logging-plugin')
@@ -272,7 +273,7 @@ def cylc_install_cli(test_dir):
     return _cylc_install_cli(test_dir)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_cylc_install_cli(mod_test_dir):
     return _cylc_install_cli(mod_test_dir)
 
@@ -282,7 +283,7 @@ def cylc_reinstall_cli(test_dir):
     return _cylc_reinstall_cli(test_dir)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_cylc_reinstall_cli(mod_test_dir):
     return _cylc_reinstall_cli(mod_test_dir)
 
@@ -292,7 +293,7 @@ def cylc_validate_cli(capsys, caplog):
     return _cylc_inspection_cli(capsys, caplog, cylc_validate, validate_gop)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_cylc_validate_cli(mod_capsys, mod_caplog):
     return _cylc_inspection_cli(
         mod_capsys, mod_caplog, cylc_validate, validate_gop
@@ -433,14 +434,14 @@ def mock_global_cfg(monkeypatch):
     yield _inner
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 def run_dir():
     """The cylc run directory for this host."""
     CYLC_RUN_DIR.mkdir(exist_ok=True)
     yield CYLC_RUN_DIR
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 def ses_test_dir(request, run_dir):
     """The root run dir for test flows in this test session."""
     timestamp = get_current_time_string(use_basic_format=True)
@@ -451,7 +452,7 @@ def ses_test_dir(request, run_dir):
     _rm_if_empty(path)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def mod_test_dir(request, ses_test_dir):
     """The root run dir for test flows in this test module."""
     path = Path(ses_test_dir, request.module.__name__)

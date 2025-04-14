@@ -25,7 +25,7 @@ from cylc.flow.exceptions import PluginError
 from cylc.flow.pathutil import get_workflow_run_dir
 
 
-# @pytest.fixture(scope='module')
+# @pytest_asyncio.fixture(scope='module')
 @pytest.fixture
 def workflow_source_dir(tmp_path):
     """A source dir with a Rose config that configures file installation."""

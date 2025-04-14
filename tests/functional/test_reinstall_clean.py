@@ -32,9 +32,11 @@ from pathlib import Path
 import shutil
 from uuid import uuid4
 
+import pytest
+import pytest_asyncio
+
 from cylc.flow.hostuserutil import get_host
 from cylc.flow.pathutil import get_workflow_run_dir
-import pytest
 
 from cylc.rose.utilities import (
     ROSE_ORIG_HOST_INSTALLED_OVERRIDE_STRING as ROHIOS,
@@ -43,7 +45,7 @@ from cylc.rose.utilities import (
 HOST = get_host()
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def monkeymodule():
     from _pytest.monkeypatch import MonkeyPatch
     mpatch = MonkeyPatch()
@@ -51,7 +53,7 @@ def monkeymodule():
     mpatch.undo()
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 def fixture_provide_flow(tmp_path_factory, request):
     """Provide a cylc workflow based on the contents of a folder which can
     be either validated or installed.
@@ -75,7 +77,7 @@ def fixture_provide_flow(tmp_path_factory, request):
         shutil.rmtree(flowpath)
 
 
-@pytest.fixture(scope='module')
+@pytest_asyncio.fixture(scope='module')
 async def fixture_install_flow(
     fixture_provide_flow, monkeymodule, mod_cylc_install_cli
 ):
